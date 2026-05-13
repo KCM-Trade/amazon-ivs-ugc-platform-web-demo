@@ -4,6 +4,8 @@ RESET := \033[0m
 
 .PHONY: help app install bootstrap deploy destroy clean
 
+CDK_DIR					:=	$(shell cd "$(dir $(lastword $(MAKEFILE_LIST)))" && pwd)
+
 AWS_PROFILE_FLAG		 =	--profile $(AWS_PROFILE)
 STAGE					 ?=	dev
 PUBLISH					 ?=	false
@@ -13,6 +15,13 @@ CDK_OPTIONS 			 =	$(if $(AWS_PROFILE),$(AWS_PROFILE_FLAG)) -c stage=$(STAGE) -c 
 FE_DEPLOYMENT_STACK		 =	UGC-Frontend-Deployment-$(STAGE)
 SEED_COUNT 				 ?=	50
 OFFLINE_SESSION_COUNT	 ?=	1
+
+# bin/cdk.ts only sets stack env when CDK_DEFAULT_ACCOUNT and CDK_DEFAULT_REGION are both set.
+# When they are missing, cdk bootstrap cannot infer the target; fill from STS + region chain.
+AWS_CLI_PROFILE_OPT		=	$(if $(AWS_PROFILE),--profile $(AWS_PROFILE),)
+define CDK_WITH_ENV
+	set -e; export AWS_SDK_LOAD_CONFIG=$${AWS_SDK_LOAD_CONFIG:-1}; if [ -n "$(strip $(AWS_PROFILE))" ]; then export AWS_PROFILE="$(AWS_PROFILE)"; fi; _STS_ACCOUNT=$$(aws sts get-caller-identity --query Account --output text $(AWS_CLI_PROFILE_OPT)) || { echo "AWS credentials required (e.g. aws configure or aws sso login)"; exit 1; }; if [ -z "$$CDK_DEFAULT_ACCOUNT" ]; then export CDK_DEFAULT_ACCOUNT="$$_STS_ACCOUNT"; fi; if [ -z "$$CDK_DEFAULT_REGION" ]; then _REG="$${AWS_DEFAULT_REGION:-$${AWS_REGION}}"; if [ -z "$$_REG" ]; then _REG=$$(aws configure get region $(AWS_CLI_PROFILE_OPT) 2>/dev/null || true); fi; if [ -z "$$_REG" ]; then echo "Set CDK_DEFAULT_REGION or AWS_DEFAULT_REGION, or run: aws configure set region <region>"; exit 1; fi; export CDK_DEFAULT_REGION="$$_REG"; fi; export AWS_DEFAULT_REGION="$$CDK_DEFAULT_REGION"; export AWS_REGION="$$CDK_DEFAULT_REGION"
+endef
 
 help: ## Shows this help message
 	@echo "\n$$(tput bold)Available Rules:$$(tput sgr0)\n"
@@ -30,42 +39,46 @@ help: ## Shows this help message
 	@echo "Read more about schedule expressions for EventBridge rules here: https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html \n" | fold -s
 	@echo "4. AWS CLI is required to run the seed command (https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html). \n"
 	@echo "5. Add JSON=<file_path> as an argument for the seed command to use a JSON file to create data. Furthermore, the script will create randomly generated data to match the SEED_COUNT. By default the script will create 1 offline session count out of the seed count. To change this please use the OFFLINE_SESSION_COUNT attribute. \n"
+	@echo "6. Deploy builds ECS Docker images via ContainerImage.fromAsset (cdk/api, cdk/streamEventsApi). Start Docker Desktop (or another Docker daemon) before make deploy or make app. \n" | fold -s
 
 app: install bootstrap deploy ## Installs NPM dependencies, bootstraps, and deploys the stack
 
 install: ## Installs NPM dependencies
 	@echo "Installing NPM dependencies..."
-	npm install
+	cd $(CDK_DIR) && npm install
 
 bootstrap: ## Deploys the CDK Toolkit staging stack
 	@echo "Bootstrapping..."
-	npx cdk bootstrap $(CDK_OPTIONS)
+	@cd $(CDK_DIR) && $(CDK_WITH_ENV); npx cdk bootstrap $(CDK_OPTIONS)
 
 deploy: ## Deploys the stack
 	@echo "Deploying $(STACK)..."
-	npx cdk deploy $(STACK) --outputs-file temp_out.json $(CDK_OPTIONS)
-	@echo "Sanitizing CDK output..."
-	node scripts/sanitize-output $(STACK)
-	rm temp_out.json
+	@docker info >/dev/null 2>&1 || \
+		( echo ""; \
+		  echo "Docker is required: this stack publishes ECS container images built from cdk/api and cdk/streamEventsApi." >&2; \
+		  echo "Start Docker Desktop and wait until it is running, then run make deploy (or make app) again." >&2; exit 1; )
+	@cd $(CDK_DIR) && $(CDK_WITH_ENV); npx cdk deploy $(STACK) --outputs-file temp_out.json $(CDK_OPTIONS) && \
+		echo "Sanitizing CDK output..." && \
+		node scripts/sanitize-output $(STACK) && \
+		rm -f temp_out.json
 	@echo "\n$$(tput bold) ✅ $(STACK) Deployed Successfully $$(tput sgr0)\n"
 	@echo "\n$$(tput bold) $(ORANGE) Attention: Please note that adjustments made to your current cloud stack may not retrospectively affect all previously created resources. $$(tput sgr0)\n$(RESET)"
 	@if [ $(PUBLISH) = true ]; then\
-		echo "Publishing Frontend App...";\
-		npm install --prefix ../web-ui;\
-		npm run build --prefix ../web-ui;\
-		npx cdk deploy $(FE_DEPLOYMENT_STACK) $(CDK_OPTIONS) &&\
-		echo "Frontend Published. Cleaning up the deployment stack..." &&\
-		npx cdk destroy $(FE_DEPLOYMENT_STACK) $(CDK_OPTIONS) --force &&\
-		echo "\n$$(tput bold) ✅ Frontend App Published Successfully $$(tput sgr0)\n";\
+		cd $(CDK_DIR) && npm install --prefix ../web-ui && \
+		npm run build --prefix ../web-ui && \
+		{ $(CDK_WITH_ENV); npx cdk deploy $(FE_DEPLOYMENT_STACK) $(CDK_OPTIONS); } && \
+		echo "Frontend Published. Cleaning up the deployment stack..." && \
+		{ $(CDK_WITH_ENV); npx cdk destroy $(FE_DEPLOYMENT_STACK) $(CDK_OPTIONS) --force; } && \
+		echo "\n$$(tput bold) ✅ Frontend App Published Successfully $$(tput sgr0)\n"; \
 	fi
 
 destroy: clean ## Destroys the stack and cleans up
 	@echo "Destroying $(STACK)..."
-	npx cdk destroy $(STACK) $(CDK_OPTIONS)
+	@cd $(CDK_DIR) && $(CDK_WITH_ENV); npx cdk destroy $(STACK) $(CDK_OPTIONS)
 
 clean: ## Deletes the cloud assembly directory (cdk.out)
 	@echo "Cleaning..."
-	rm -rf cdk.out
+	rm -rf $(CDK_DIR)/cdk.out
 
 seed: ## Seed users and stream sessions.
 	@echo "Seeding ${SEED_COUNT} Items..."

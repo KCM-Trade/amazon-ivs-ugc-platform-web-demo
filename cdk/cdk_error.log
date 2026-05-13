@@ -1,0 +1,75 @@
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!                                                                                                                      !!
+!!  This software has not been tested with node v24.15.0.                                                               !!
+!!  Should you encounter odd runtime issues, please try using one of the supported release before filing a bug report.  !!
+!!                                                                                                                      !!
+!!  This software is currently running on node v24.15.0.                                                                !!
+!!  As of the current release of this software, supported node releases are:                                            !!
+!!  - ^22.0.0 (Planned end-of-life: 2027-04-30)                                                                         !!
+!!                                                                                                                      !!
+!!  This warning can be silenced by setting the JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION environment variable.        !!
+!!                                                                                                                      !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+/Users/chenhaifeng/Documents/GitHub/amazon-ivs-ugc-platform-web-demo/cdk/node_modules/aws-cdk-lib/core/lib/private/synthesis.js:3
+  `);throw new Error(`Validation failed with the following errors:
+           ^
+Error: Validation failed with the following errors:
+  [UGC-dev/Channels/Cleanup-Unverified-Users-Schedule-Rule] Either 'eventPattern' or 'schedule' must be defined
+    at validateTree (/Users/chenhaifeng/Documents/GitHub/amazon-ivs-ugc-platform-web-demo/cdk/node_modules/aws-cdk-lib/core/lib/private/synthesis.js:3:12)
+    at synthesize (/Users/chenhaifeng/Documents/GitHub/amazon-ivs-ugc-platform-web-demo/cdk/node_modules/aws-cdk-lib/core/lib/private/synthesis.js:1:1561)
+    at App.synth (/Users/chenhaifeng/Documents/GitHub/amazon-ivs-ugc-platform-web-demo/cdk/node_modules/aws-cdk-lib/core/lib/stage.js:1:2263)
+    at process.<anonymous> (/Users/chenhaifeng/Documents/GitHub/amazon-ivs-ugc-platform-web-demo/cdk/node_modules/aws-cdk-lib/core/lib/app.js:1:1745)
+    at Object.onceWrapper (node:events:631:26)
+    at process.emit (node:events:509:28)
+    at process.emit (node:domain:489:12)
+    at process.emit.sharedData.processEmitHook.installedValue [as emit] (/Users/chenhaifeng/Documents/GitHub/amazon-ivs-ugc-platform-web-demo/cdk/node_modules/@cspotcode/source-map-support/source-map-support.js:745:40)
+
+NOTICES         (What's this? https://github.com/aws/aws-cdk/wiki/CLI-Notices)
+
+34892	CDK CLI will collect telemetry data on command usage starting at version 2.1100.0 (unless opted out)
+
+	Overview: We do not collect customer content and we anonymize the
+	          telemetry we do collect. See the attached issue for more
+	          information on what data is collected, why, and how to
+	          opt-out. Telemetry will NOT be collected for any CDK CLI
+	          version prior to version 2.1100.0 - regardless of
+	          opt-in/out. You can also preview the telemetry we will start
+	          collecting by logging it to a local file, by adding
+	          `--unstable=telemetry --telemetry-file=my/local/file` to any
+	          `cdk` command.
+
+	Affected versions: cli: >=2.0.0 <2.1100.0
+
+	More information at: https://github.com/aws/aws-cdk/issues/34892
+
+
+30717	(lambda-nodejs): breaking change in esbuild causes import module error
+
+	Overview: ESBuild released a breaking change on version 0.22.0 that
+	          changed the default bundling behavior. `lambda-nodejs`'s
+	          `NodeJsFunction` now to fails to synthesize with the error
+	          message `Runtime.ImportModuleError: Cannot find module
+	          'module'`. This issue exists on all CDK versions up to and
+	          including `2.147.2`. The workaround is either pin the
+	          esbuild version to ~0.21 or add `--packages=bundle` to
+	          `bundling.esbuildArgs` property (this option only works for
+	          esbuild version >= `0.22.0`).
+
+	Affected versions: aws-cdk-lib.aws_lambda_nodejs.: >=2.0.0 <= 2.147.2
+
+	More information at: https://github.com/aws/aws-cdk/issues/30717
+
+
+32775	(cli): CLI versions and CDK library versions have diverged
+
+	Overview: Starting in CDK 2.179.0, CLI versions will no longer be in
+	          lockstep with CDK library versions. CLI versions will now be
+	          released as 2.1000.0 and continue with 2.1001.0, etc.
+
+	Affected versions: cli: >=2.0.0 <=2.1005.0
+
+	More information at: https://github.com/aws/aws-cdk/issues/32775
+
+
+If you don’t want to see a notice anymore, use "cdk acknowledge <id>". For example, "cdk acknowledge 34892".
+Subprocess exited with error 1

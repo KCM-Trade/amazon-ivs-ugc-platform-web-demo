@@ -18,9 +18,11 @@ const { resourceConfig }: { resourceConfig: UGCResourceWithChannelsConfig } =
   app.node.tryGetContext(stage);
 const account = process.env.CDK_DEFAULT_ACCOUNT;
 const region = process.env.CDK_DEFAULT_REGION;
+const stackEnv =
+  account && region ? { account, region } : undefined;
 
 new UGCStack(app, stackName, {
-  env: { account, region },
+  env: stackEnv,
   tags: { stage, project: stackName },
   resourceConfig,
   shouldPublish,
@@ -28,7 +30,7 @@ new UGCStack(app, stackName, {
 });
 
 new UGCFrontendDeploymentStack(app, `UGC-Frontend-Deployment-${stage}`, {
-  env: { account, region },
+  env: stackEnv,
   tags: { stage, project: stackName },
   ugcStackId: stackName
 });

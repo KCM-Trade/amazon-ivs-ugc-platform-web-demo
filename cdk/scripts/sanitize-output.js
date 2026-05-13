@@ -1,7 +1,8 @@
 const { readFileSync, writeFileSync } = require('fs');
+const path = require('path');
 
-const inputPath = 'temp_out.json';
-const outputPath = '../web-ui/.env';
+const inputPath = path.join(__dirname, '..', 'temp_out.json');
+const outputPath = path.join(__dirname, '..', '..', 'web-ui', '.env');
 const json = readFileSync(inputPath);
 const output = JSON.parse(json);
 
