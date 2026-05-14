@@ -1,24 +1,21 @@
 import {
   ChannelType,
   UpdateChannelCommand,
-  TranscodePreset,
-  MultitrackInputConfiguration
+  TranscodePreset
 } from '@aws-sdk/client-ivs';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 
 import {
-  areObjectsSame,
   ChannelConfiguration,
   getMultitrackChannelInputFields,
-  getUser
+  getRecordingConfigurationArnFromEnv,
+  getUser,
+  userChannelNeedsIvSConfigSync
 } from '../helpers';
 import { UNEXPECTED_EXCEPTION } from '../../shared/constants';
 import { ivsClient, updateDynamoItemAttributes } from '../../shared/helpers';
 import { UserContext } from '../../shared/authorizer';
-
-const cdkMultitrackInputConfiguration: MultitrackInputConfiguration =
-  JSON.parse(process.env.CHANNEL_MULTITRACK_INPUT_CONFIGURATION || '{}');
 
 const handler = async (request: FastifyRequest, reply: FastifyReply) => {
   const { sub } = request.requestContext.get('user') as UserContext;
@@ -26,13 +23,15 @@ const handler = async (request: FastifyRequest, reply: FastifyReply) => {
   try {
     const { Item = {} } = await getUser(sub);
     const userData = unmarshall(Item);
-    const cdkChannelConfiguration: ChannelConfiguration = {
-      type: process.env.IVS_CHANNEL_TYPE as ChannelType,
-      multitrackInputConfiguration: cdkMultitrackInputConfiguration
-    };
+
     if (
       userData &&
-      areObjectsSame(userData.channelConfiguration, cdkChannelConfiguration)
+      !userChannelNeedsIvSConfigSync(
+        userData as {
+          channelConfiguration?: ChannelConfiguration;
+          recordingConfigurationArn?: string;
+        }
+      )
     ) {
       reply.statusCode = 204;
 
@@ -40,6 +39,8 @@ const handler = async (request: FastifyRequest, reply: FastifyReply) => {
         message: 'Channel configuration is already up to date'
       });
     }
+
+    const desiredRecordingArn = getRecordingConfigurationArnFromEnv();
 
     const { containerFormat, multitrackInputConfiguration } =
       getMultitrackChannelInputFields();
@@ -50,7 +51,10 @@ const handler = async (request: FastifyRequest, reply: FastifyReply) => {
       preset: process.env
         .IVS_ADVANCED_CHANNEL_TRANSCODE_PRESET as TranscodePreset,
       containerFormat,
-      multitrackInputConfiguration
+      multitrackInputConfiguration,
+      ...(desiredRecordingArn
+        ? { recordingConfigurationArn: desiredRecordingArn }
+        : {})
     });
     const { channel } = await ivsClient.send(updateChannelCommand);
 
@@ -63,7 +67,10 @@ const handler = async (request: FastifyRequest, reply: FastifyReply) => {
             type: channel?.type,
             multitrackInputConfiguration: channel?.multitrackInputConfiguration
           }
-        }
+        },
+        ...(desiredRecordingArn
+          ? [{ key: 'recordingConfigurationArn', value: desiredRecordingArn }]
+          : [])
       ],
       primaryKey: { key: 'id', value: sub },
       tableName: process.env.CHANNELS_TABLE_NAME as string

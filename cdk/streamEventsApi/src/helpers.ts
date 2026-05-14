@@ -14,6 +14,7 @@ export type AdditionalStreamAttributes = {
   hasErrorEvent?: boolean;
   startTime?: string;
   endTime?: string;
+  recordingPlaybackUrl?: string;
 };
 
 export type StreamEvent = {

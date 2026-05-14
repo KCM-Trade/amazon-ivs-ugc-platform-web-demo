@@ -9,6 +9,7 @@ import {
   aws_iam as iam,
   aws_s3 as s3,
   CfnOutput,
+  CfnResource,
   Duration,
   RemovalPolicy,
   Stack,
@@ -133,6 +134,87 @@ export class UGCStack extends Stack {
       vpc
     });
 
+    // Dedicated bucket for IVS auto-record outputs (manifest + segments).
+    // Public read keeps HLS child requests working without rewriting manifests.
+    const ivsRecordingsBucket = new s3.Bucket(
+      this,
+      `${stackNamePrefix}-IvsRecordings`,
+      {
+        removalPolicy: RemovalPolicy.DESTROY,
+        autoDeleteObjects: true,
+        blockPublicAccess: new s3.BlockPublicAccess({
+          blockPublicAcls: true,
+          ignorePublicAcls: true,
+          blockPublicPolicy: false,
+          restrictPublicBuckets: false
+        }),
+        cors: [
+          {
+            allowedOrigins,
+            allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.HEAD],
+            allowedHeaders: ['*']
+          }
+        ]
+      }
+    );
+    ivsRecordingsBucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        sid: 'IvsRecordingGetBucketLocation',
+        effect: iam.Effect.ALLOW,
+        principals: [new iam.ServicePrincipal('ivs.amazonaws.com')],
+        actions: ['s3:GetBucketLocation'],
+        resources: [ivsRecordingsBucket.bucketArn],
+        conditions: {
+          StringEquals: {
+            'aws:SourceAccount': `${accountId}`
+          }
+        }
+      })
+    );
+    ivsRecordingsBucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        sid: 'IvsRecordingWrites',
+        effect: iam.Effect.ALLOW,
+        principals: [new iam.ServicePrincipal('ivs.amazonaws.com')],
+        actions: ['s3:PutObject'],
+        resources: [ivsRecordingsBucket.arnForObjects('*')],
+        conditions: {
+          StringEquals: {
+            'aws:SourceAccount': `${accountId}`
+          }
+        }
+      })
+    );
+    ivsRecordingsBucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        sid: 'PublicReadHlsArtifacts',
+        effect: iam.Effect.ALLOW,
+        principals: [new iam.AnyPrincipal()],
+        actions: ['s3:GetObject'],
+        resources: [ivsRecordingsBucket.arnForObjects('*')]
+      })
+    );
+
+    const ivsRecordingConfigName =
+      `${stackNamePrefix}-rec`.replace(/[^a-zA-Z0-9-_]/g, '').slice(0, 128) ||
+      'ivs-recording';
+
+    const ivsRecordingConfiguration = new CfnResource(
+      this,
+      `${stackNamePrefix}-IvsRecordingConfiguration`,
+      {
+        type: 'AWS::IVS::RecordingConfiguration',
+        properties: {
+          Name: ivsRecordingConfigName,
+          DestinationConfiguration: {
+            S3: {
+              BucketName: ivsRecordingsBucket.bucketName
+            }
+          }
+        }
+      }
+    );
+
     // Container image
     const containerImage = ecs.ContainerImage.fromAsset(
       path.join(__dirname, '../api'),
@@ -163,7 +245,8 @@ export class UGCStack extends Stack {
       cluster,
       ivsChannelType,
       channelsTable,
-      vpc
+      vpc,
+      recordingsBucketName: ivsRecordingsBucket.bucketName
     });
     const {
       containerEnv: metricsContainerEnv,
@@ -193,6 +276,8 @@ export class UGCStack extends Stack {
       })
     );
     channelsContainerEnv.STREAM_TABLE_NAME = streamTable.tableName;
+    channelsContainerEnv.IVS_RECORDING_CONFIGURATION_ARN =
+      ivsRecordingConfiguration.getAtt('Arn').toString();
 
     // This environment is required for any container that exposes authenticated endpoints
     const baseContainerEnv = {

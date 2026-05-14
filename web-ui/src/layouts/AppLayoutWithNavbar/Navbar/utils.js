@@ -1,6 +1,7 @@
 import {
   Home,
   Favorite,
+  Play,
   StreamHealth,
   StreamManager
 } from '../../../assets/icons';
@@ -28,6 +29,13 @@ export const navPageData = [
     displayName: $content.stream_manager,
     icon: <StreamManager />,
     route: '/manager',
+    isAuth: true
+  },
+  {
+    pageName: 'recordings',
+    displayName: $content.recordings,
+    icon: <Play />,
+    route: '/recordings',
     isAuth: true
   },
   {

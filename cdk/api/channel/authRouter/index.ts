@@ -17,6 +17,7 @@ import addToFollowingList from './addToFollowingList';
 import removeFromFollowingList from './removeFromFollowingList';
 import getFollowingChannels from './getFollowingChannels';
 import getLiveStatus from './getLiveStatus';
+import listRecordings from './listRecordings';
 import updateChannelConfig from './updateChannelConfiguration';
 
 declare module '@fastify/request-context' {
@@ -33,6 +34,7 @@ const router: FastifyPluginAsync = async (resource) => {
   resource.get('/streamKey/reset', resetStreamKey);
   resource.get('/followingList', getFollowingChannels);
   resource.get('/liveStatus', getLiveStatus);
+  resource.get('/recordings', listRecordings);
 
   resource.post('/actions/send', sendStreamAction);
   resource.post('/ban', banUser);

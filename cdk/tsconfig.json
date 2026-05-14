@@ -22,5 +22,12 @@
     "typeRoots": ["./node_modules/@types"],
     "outDir": "dist"
   },
-  "exclude": ["node_modules", "cdk.out"]
+  "include": ["bin/**/*.ts", "lib/**/*.ts", "lambdas/**/*.ts"],
+  "exclude": [
+    "node_modules",
+    "cdk.out",
+    "dist",
+    "api",
+    "streamEventsApi"
+  ]
 }

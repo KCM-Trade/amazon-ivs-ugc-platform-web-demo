@@ -28,6 +28,13 @@ const getCurrentSessionFetcher = async () => {
   return data;
 };
 
+const stripNeedsChannelConfigSync = (payload) => {
+  if (!payload) return payload;
+  const { needsChannelConfigSync, ...rest } = payload;
+
+  return rest;
+};
+
 export const Provider = () => {
   const [isProvisioningResources, setIsProvisioningResources] = useState(false);
   const [hasErrorProvisioningResources, setHasErrorProvisioningResources] =
@@ -58,18 +65,38 @@ export const Provider = () => {
 
   const fetchUserData = useCallback(async () => {
     const { result } = await channelAPI.getUserData();
+
     setHasFetchedInitialUserData(true);
 
-    if (result) {
-      setUserData(
-        (prevUserData) =>
-          JSON.stringify(result) === JSON.stringify(prevUserData)
-            ? prevUserData // userData is the same, no need to re-render any downstream context subscribers
-            : result // userData changed, so we must re-render all downstream context subscribers
+    if (!result) {
+      return undefined;
+    }
+
+    let next = result;
+
+    if (next.needsChannelConfigSync) {
+      const { error } = await channelAPI.updateChannelConfig();
+
+      if (!error) {
+        const { result: refreshed } = await channelAPI.getUserData();
+
+        if (refreshed) {
+          next = refreshed;
+        }
+      }
+    }
+
+    const safeForState = stripNeedsChannelConfigSync(next);
+
+    if (safeForState) {
+      setUserData((prevUserData) =>
+        JSON.stringify(safeForState) === JSON.stringify(prevUserData)
+          ? prevUserData
+          : safeForState
       );
     }
 
-    return result;
+    return stripNeedsChannelConfigSync(next);
   }, []);
 
   const fetchUserFollowingList = useCallback(async () => {

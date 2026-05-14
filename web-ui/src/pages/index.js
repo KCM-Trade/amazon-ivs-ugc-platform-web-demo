@@ -1,6 +1,7 @@
 export { default as Channel } from './Channel';
 export { default as ChannelDirectory } from './ChannelDirectory';
 export { default as Following } from './Following';
+export { default as Recordings } from './Recordings/Recordings';
 export { default as Settings } from './Settings';
 export { default as StreamHealth } from './StreamHealth';
 export { default as StreamManager } from './StreamManager';

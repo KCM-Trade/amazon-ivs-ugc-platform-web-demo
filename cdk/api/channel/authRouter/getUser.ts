@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 
-import { getChannelArnParams, getUser } from '../helpers';
+import { getChannelArnParams, getUser, userChannelNeedsIvSConfigSync } from '../helpers';
 import {
   ChannelAssetURLs,
   getChannelAssetUrls,
@@ -23,6 +23,8 @@ interface GetUserResponseBody extends ResponseBody {
   username?: string;
   trackingId?: string;
   stageId?: string;
+  /** When true, client should call PUT /channel/config/update once to align IVS + Dynamo (recording ARN, presets). */
+  needsChannelConfigSync?: boolean;
 }
 
 const handler = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -45,7 +47,8 @@ const handler = async (request: FastifyRequest, reply: FastifyReply) => {
       username,
       trackingId,
       stageId,
-      channelConfiguration
+      channelConfiguration,
+      recordingConfigurationArn
     } = data;
 
     if (!channelArn) {
@@ -70,6 +73,10 @@ const handler = async (request: FastifyRequest, reply: FastifyReply) => {
     responseBody.channelId = channelId;
     responseBody.stageId = stageId;
     responseBody.channelConfiguration = channelConfiguration;
+    responseBody.needsChannelConfigSync = userChannelNeedsIvSConfigSync({
+      channelConfiguration,
+      recordingConfigurationArn
+    });
   } catch (error) {
     console.error(error);
 

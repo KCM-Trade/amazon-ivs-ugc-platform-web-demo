@@ -1,6 +1,7 @@
 import {
   Favorite,
   Home,
+  Play,
   Settings,
   StreamHealth,
   StreamManager
@@ -26,6 +27,12 @@ export const navMenuButtonData = [
     label: $content.stream_manager,
     icon: <StreamManager />,
     to: '/manager'
+  },
+  {
+    label: $content.recordings,
+    icon: <Play />,
+    to: '/recordings',
+    pageName: 'recordings'
   },
   {
     label: $content.stream_health,

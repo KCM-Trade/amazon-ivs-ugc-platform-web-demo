@@ -31,6 +31,7 @@ import {
   Channel,
   ChannelDirectory,
   Following,
+  Recordings,
   Settings,
   StreamHealth,
   StreamManager,
@@ -150,6 +151,12 @@ const router = createBrowserRouter(
           <Route
             path="following"
             element={<Following />}
+            loader={stateCleanupLoader}
+            shouldRevalidate={() => false}
+          />
+          <Route
+            path="recordings"
+            element={<Recordings />}
             loader={stateCleanupLoader}
             shouldRevalidate={() => false}
           />

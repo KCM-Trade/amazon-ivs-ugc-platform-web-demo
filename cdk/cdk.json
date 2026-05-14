@@ -45,7 +45,7 @@
         "productApiLocale": "",
         "productLinkRegionCode": "",
         "enableAmazonProductStreamAction": false,
-        "webBroadcastQuality": "720"
+        "webBroadcastQuality": "1080"
       }
     },
     "prod": {
@@ -69,7 +69,7 @@
         "productApiLocale": "",
         "productLinkRegionCode": "",
         "enableAmazonProductStreamAction": false,
-        "webBroadcastQuality": "720"
+        "webBroadcastQuality": "1080"
       }
     }
   }

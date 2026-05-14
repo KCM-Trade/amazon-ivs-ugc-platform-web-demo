@@ -19,6 +19,8 @@ const { ERROR, AUDIO_BLOCKED, TEXT_METADATA_CUE } = PlayerEventType;
 
 const usePlayer = ({
   isLive,
+  /** When true, load `playbackUrl` as VOD/HLS regardless of live state. */
+  isVod = false,
   playbackUrl,
   ingestConfiguration,
   isBlurEnabled = false,
@@ -240,6 +242,8 @@ const usePlayer = ({
 
   // Play the last buffer segment before closing the player
   useEffect(() => {
+    if (isVod) return;
+
     if (prevIsChannelLive && !isLive && playerRef.current) {
       let bufferDuration = playerRef.current.getBufferDuration();
 
@@ -252,21 +256,22 @@ const usePlayer = ({
     }
 
     return () => clearTimeout(timeoutId.current);
-  }, [isLive, prevIsChannelLive]);
+  }, [isLive, prevIsChannelLive, isVod]);
 
   // Load the player
   useEffect(() => {
-    if (playbackUrl && isLive) {
+    if (playbackUrl && (isLive || isVod)) {
       create();
       playerRef.current.load(playbackUrl);
       play();
       updateVolume(defaultVolumeLevel);
-    } else {
+    } else if (!playbackUrl || (!isLive && !isVod)) {
       reset();
     }
   }, [
     reset,
     isLive,
+    isVod,
     playbackUrl,
     create,
     defaultVolumeLevel,

@@ -2,6 +2,7 @@ import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { FastifyReply, FastifyRequest } from 'fastify';
 
 import {
+  IVS_RECORDING_STATE_CHANGE_TYPE,
   LIMIT_BREACH_EVENT_TYPE,
   SESSION_CREATED,
   SESSION_ENDED,
@@ -19,6 +20,32 @@ import {
   updateStreamEvents
 } from './helpers';
 import { getUserByChannelArn } from './helpers';
+
+const RECORDING_TERMINAL_STATUSES = new Set([
+  'Recording End',
+  'RECORDING_ENDED',
+  'Recording End Failure',
+  'RECORDING_ENDED_WITH_FAILURE'
+]);
+
+const buildPlaybackUrlFromS3Key = (
+  bucketName: string,
+  region: string | undefined,
+  key: string
+) => {
+  const hostRegion = region || process.env.AWS_REGION || process.env.REGION;
+  const playbackBase = `https://${bucketName}.s3.${hostRegion}.amazonaws.com/`;
+
+  return (
+    playbackBase +
+    key
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/')
+  );
+};
+
+const normalizeKeyPrefix = (prefix: string) => prefix.replace(/\/+$/, '');
 
 const handler = async (
   request: FastifyRequest<{
@@ -45,6 +72,10 @@ const handler = async (
     }
 
     console.info('Incoming Event', JSON.stringify(request.body));
+
+    if (eventType === IVS_RECORDING_STATE_CHANGE_TYPE) {
+      return handleRecordingStateChange(request, reply);
+    }
 
     let {
       detail: { stream_id: streamId = '' }
@@ -161,5 +192,145 @@ const handler = async (
 
   return reply.send();
 };
+
+async function handleRecordingStateChange(
+  request: FastifyRequest<{
+    Body: {
+      'detail-type': string;
+      detail: Record<string, unknown>;
+      time: string;
+      resources: string[];
+    };
+  }>,
+  reply: FastifyReply
+) {
+  try {
+    const channelArn = request.body.resources?.[0];
+    const eventTime = request.body.time;
+
+    const detail = request.body.detail || {};
+    const recordingStatusRaw = detail.recording_status as string | undefined;
+    const recordingBucket = detail.recording_s3_bucket_name as
+      | string
+      | undefined;
+    const keyPrefix = detail.recording_s3_key_prefix as string | undefined;
+    const recordingSessionStreamIds = detail.recording_session_stream_ids as
+      | string[]
+      | undefined;
+    const streamIdScalar = detail.stream_id as string | undefined;
+
+    if (!channelArn || !eventTime) {
+      throw new Error('Missing channelArn or event time');
+    }
+
+    if (
+      !recordingStatusRaw ||
+      !RECORDING_TERMINAL_STATUSES.has(recordingStatusRaw)
+    ) {
+      await reply.send();
+
+      return;
+    }
+
+    const expectedBucket = process.env.RECORDINGS_BUCKET_NAME;
+    if (
+      expectedBucket &&
+      recordingBucket &&
+      recordingBucket !== expectedBucket
+    ) {
+      console.warn(
+        'Recording bucket mismatch',
+        recordingBucket,
+        expectedBucket
+      );
+    }
+
+    if (!recordingBucket || !keyPrefix) {
+      console.warn('Recording end without S3 location; skipping persist');
+      await reply.send();
+
+      return;
+    }
+
+    const manifestKey = `${normalizeKeyPrefix(keyPrefix)}/media/hls/master.m3u8`;
+    const recordingPlaybackUrl = buildPlaybackUrlFromS3Key(
+      recordingBucket,
+      process.env.AWS_REGION || process.env.REGION,
+      manifestKey
+    );
+
+    const streamIds = new Set<string>();
+    if (recordingSessionStreamIds?.length) {
+      recordingSessionStreamIds.forEach((id) => streamIds.add(id));
+    } else if (streamIdScalar) {
+      streamIds.add(streamIdScalar);
+    }
+
+    if (!streamIds.size) {
+      console.warn('Recording end without stream ids; skipping persist');
+      await reply.send();
+
+      return;
+    }
+
+    const { Items } = await getUserByChannelArn(channelArn);
+    let userSub: string | undefined;
+
+    if (Items && Items.length > 0) {
+      ({ id: userSub } = unmarshall(Items[0]));
+    } else {
+      throw new Error('User not found');
+    }
+
+    if (!userSub) {
+      throw new Error('Missing user sub');
+    }
+
+    const newEvent: StreamEvent = {
+      eventTime,
+      name: recordingStatusRaw,
+      type: IVS_RECORDING_STATE_CHANGE_TYPE
+    };
+
+    await Promise.all(
+      [...streamIds].map(async (streamId) => {
+        const streamEvents = await getStreamEvents(channelArn, streamId);
+        streamEvents.push(newEvent);
+        const sortedStreamEvents =
+          streamEvents.sort(
+            ({ eventTime: eventTime1 }, { eventTime: eventTime2 }) => {
+              if (eventTime1 === eventTime2) {
+                return 0;
+              }
+
+              return eventTime1 > eventTime2 ? 1 : -1;
+            }
+          ) || [];
+
+        const additionalAttributes: AdditionalStreamAttributes = {
+          recordingPlaybackUrl
+        };
+
+        await updateStreamEvents({
+          additionalAttributes,
+          attributesToRemove: [],
+          channelArn,
+          streamEvents: sortedStreamEvents,
+          streamId,
+          userSub: userSub as string
+        });
+      })
+    );
+  } catch (error) {
+    console.error(error);
+    console.error(`Event body: ${JSON.stringify(request.body)}`);
+
+    reply.statusCode = 500;
+
+    return reply.send({ __type: UNEXPECTED_EXCEPTION });
+  }
+
+  return reply.send();
+}
 
 export default handler;

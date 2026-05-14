@@ -25,6 +25,7 @@ interface MetricsStackProps extends NestedStackProps {
   ivsChannelType: ChannelType;
   channelsTable: dynamodb.Table;
   vpc: ec2.Vpc;
+  recordingsBucketName: string;
 }
 
 export class MetricsStack extends NestedStack {
@@ -38,7 +39,8 @@ export class MetricsStack extends NestedStack {
     const parentStackName = Stack.of(this.nestedStackParent!).stackName;
     const nestedStackName = 'Metrics';
     const stackNamePrefix = `${parentStackName}-${nestedStackName}`;
-    const { cluster, ivsChannelType, channelsTable, vpc } = props;
+    const { cluster, ivsChannelType, channelsTable, vpc, recordingsBucketName } =
+      props;
 
     // Dynamo DB Stream Table
     const streamTable = new dynamodb.Table(
@@ -143,7 +145,8 @@ export class MetricsStack extends NestedStack {
         containerImage,
         environment: {
           STREAM_TABLE_NAME: streamTable.tableName,
-          CHANNELS_TABLE_NAME: channelsTable.tableName
+          CHANNELS_TABLE_NAME: channelsTable.tableName,
+          RECORDINGS_BUCKET_NAME: recordingsBucketName
         },
         minScalingCapacity: 1,
         policies: [streamTablePolicyStatement, channelsTablePolicyStatement],

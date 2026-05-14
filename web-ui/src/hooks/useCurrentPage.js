@@ -8,6 +8,7 @@ const ROUTES = [
     children: [{ index: true }, { path: 'profile' }]
   },
   { path: 'following', name: 'following' },
+  { path: 'recordings', name: 'recordings' },
   { path: 'settings', name: 'settings' },
   {
     path: 'manager',

@@ -11,6 +11,7 @@ import {
   ChannelConfiguration,
   generateDeterministicId,
   getMultitrackChannelInputFields,
+  getRecordingConfigurationArnFromEnv,
   getUser
 } from '../helpers';
 import {
@@ -50,6 +51,7 @@ const handler = async (
     const cleanedUserName = username.replace(/[^a-zA-Z0-9-_]/g, '');
     const channelName = `${cleanedUserName}s-channel`;
     const multitrackChannelInputFields = getMultitrackChannelInputFields();
+    const recordingConfigurationArn = getRecordingConfigurationArnFromEnv();
 
     const createChannelCommand = new CreateChannelCommand({
       name: channelName,
@@ -57,7 +59,10 @@ const handler = async (
       preset: process.env
         .IVS_ADVANCED_CHANNEL_TRANSCODE_PRESET as TranscodePreset,
       tags: { project: process.env.PROJECT_TAG as string },
-      ...multitrackChannelInputFields
+      ...multitrackChannelInputFields,
+      ...(recordingConfigurationArn
+        ? { recordingConfigurationArn: recordingConfigurationArn }
+        : {})
     });
     const { channel, streamKey } = await ivsClient.send(createChannelCommand);
 
@@ -127,7 +132,15 @@ const handler = async (
         {
           key: 'channelConfiguration',
           value: channelConfiguration
-        }
+        },
+        ...(recordingConfigurationArn
+          ? [
+              {
+                key: 'recordingConfigurationArn',
+                value: recordingConfigurationArn
+              }
+            ]
+          : [])
       ],
       primaryKey: { key: 'id', value: sub },
       tableName: process.env.CHANNELS_TABLE_NAME as string

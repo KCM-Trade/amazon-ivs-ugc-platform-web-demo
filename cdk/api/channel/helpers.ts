@@ -404,3 +404,32 @@ export const areObjectsSame = <T extends Record<string, any>>(
     (key) => keys2.includes(key) && areObjectsSame(obj1[key], obj2[key])
   );
 };
+
+export const getRecordingConfigurationArnFromEnv = (): string =>
+  (process.env.IVS_RECORDING_CONFIGURATION_ARN || '').trim();
+
+export const getCdkChannelConfigurationFromEnv = (): ChannelConfiguration => {
+  const multitrackInputConfiguration: MultitrackInputConfiguration =
+    JSON.parse(process.env.CHANNEL_MULTITRACK_INPUT_CONFIGURATION || '{}');
+
+  return {
+    type: process.env.IVS_CHANNEL_TYPE as ChannelTypeValues,
+    multitrackInputConfiguration
+  };
+};
+
+/** True when Dynamo channel row is out of date vs current CDK / env IVS channel settings or recording ARN. */
+export const userChannelNeedsIvSConfigSync = (data: {
+  channelConfiguration?: ChannelConfiguration;
+  recordingConfigurationArn?: string;
+}): boolean => {
+  const desiredRecordingArn = getRecordingConfigurationArnFromEnv();
+  const storedRecordingArn = (data.recordingConfigurationArn || '').trim();
+  const recordingInSync = desiredRecordingArn === storedRecordingArn;
+  const channelConfigMatches = areObjectsSame(
+    data.channelConfiguration as ChannelConfiguration,
+    getCdkChannelConfigurationFromEnv()
+  );
+
+  return !(recordingInSync && channelConfigMatches);
+};

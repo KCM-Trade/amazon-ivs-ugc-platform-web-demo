@@ -1,6 +1,7 @@
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { mockClient } from 'aws-sdk-client-mock';
 import {
+  QueryCommand,
   UpdateItemCommand,
   GetItemCommandOutput
 } from '@aws-sdk/client-dynamodb';
@@ -131,7 +132,8 @@ describe('postStreamEvents', () => {
     mockDynamoDbClient.reset();
 
     process.env = {
-      STREAM_TABLE_NAME: 'streamTableName'
+      STREAM_TABLE_NAME: 'streamTableName',
+      RECORDINGS_BUCKET_NAME: 'test-recordings-bucket'
     };
     mockDynamoDbClient.on(UpdateItemCommand).resolves({});
     mockConsoleError.mockClear();
@@ -199,7 +201,10 @@ describe('postStreamEvents', () => {
       const response = await server.inject({
         method: 'POST',
         url: '/',
-        payload: requestBody
+        payload: {
+          ...requestBody,
+          detail: { ...requestBody.detail, stream_id: '' }
+        }
       });
 
       expect(response.statusCode).toBe(500);
@@ -251,6 +256,16 @@ describe('postStreamEvents', () => {
     });
 
     it('when live stream with same channelArn exists, should set old live stream as offline', async () => {
+      mockDynamoDbClient.on(QueryCommand).resolves({
+        Items: [
+          {
+            channelArn: { S: 'channelArn' },
+            id: { S: 'OLD_STREAM_ID' },
+            isOpen: { S: 'true' }
+          }
+        ]
+      });
+
       mockGetUserByChannelArn(
         Promise.resolve({
           Items: [{ username: 'username', id: 'id', channelArn: 'channelArn' }],
@@ -281,11 +296,19 @@ describe('postStreamEvents', () => {
           $metadata: {}
         })
       );
-      (unmarshall as jest.Mock).mockImplementation(() => ({
-        id: 'OLD_STREAM_ID',
-        channelArn: 'channelArn',
-        isOpen: 'true'
-      }));
+      (unmarshall as jest.Mock).mockImplementation((item: { id?: { S?: string } }) => {
+        const rawId = item?.id?.S;
+
+        if (rawId === 'OLD_STREAM_ID') {
+          return {
+            id: 'OLD_STREAM_ID',
+            channelArn: 'channelArn',
+            isOpen: 'true'
+          };
+        }
+
+        return mockUserData;
+      });
 
       const response = await server.inject({
         method: 'POST',
