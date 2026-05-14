@@ -20,6 +20,8 @@ export interface UGCResourceWithChannelsConfig extends ChannelsResourceConfig {
   enableAmazonProductStreamAction: boolean;
 }
 
+export type WebBroadcastQuality = '720' | '1080';
+
 export interface ChannelsResourceConfig {
   allowedOrigins: string[];
   clientBaseUrl: string;
@@ -30,6 +32,8 @@ export interface ChannelsResourceConfig {
   minScalingCapacity: number;
   signUpAllowedDomains: string[];
   multitrackInputConfiguration: MultitrackInputConfiguration;
+  /** Web Broadcast resolution/ladder for low-latency Go Live (`720` balanced, `1080` max clarity within IVS ingest caps). */
+  webBroadcastQuality?: WebBroadcastQuality;
 }
 
 export const defaultLambdaParams: Partial<lambda.NodejsFunctionProps> = {

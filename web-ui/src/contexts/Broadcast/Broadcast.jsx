@@ -8,8 +8,8 @@ import {
 } from 'react';
 import PropTypes from 'prop-types';
 
-import { BROADCAST_STREAM_CONFIG_PRESETS } from '../../constants';
 import { streamManager as $streamManagerContent } from '../../content';
+import { buildWebBroadcastStreamConfig } from '../../helpers/webBroadcastStreamConfig';
 import { useNotif } from '../Notification';
 import { AUDIO_INPUT_NAME } from './useAudioMixer';
 import useContextHook from '../useContextHook';
@@ -34,16 +34,17 @@ const {
  * StreamConfig {
  *  maxResolution: { width: number, height: number }; // 160-1920 (px), 1920x1080 or 1080x1920 maximums
  *  maxFramerate: number; // 10-60 (fps)
- *  maxBitrate: number; // 200-8500 (Mbps)
+ *  maxBitrate: number; // 200-8500 (kbps typical)
  * }
- * - The stream config must match IVS account config
+ * - Quality: REACT_APP_WEB_BROADCAST_QUALITY=720 | 1080 (set via cdk resourceConfig.webBroadcastQuality or web-ui/.env)
  */
 const channelType = process.env.REACT_APP_CHANNEL_TYPE;
 const orientation = 'landscape';
-const streamConfig = {
-  ...BROADCAST_STREAM_CONFIG_PRESETS[channelType][orientation],
-  maxResolution: { width: 1280, height: 720 } // max resolution override to avoid full HD performance issues
-};
+const streamConfig = buildWebBroadcastStreamConfig({
+  channelType,
+  orientation,
+  qualityEnv: process.env.REACT_APP_WEB_BROADCAST_QUALITY
+});
 const logLevel = LOG_LEVEL.ERROR;
 const CONNECTION_TIMEOUT = 10_000; // 10s
 

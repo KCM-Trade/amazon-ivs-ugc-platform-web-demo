@@ -16,7 +16,8 @@ const {
   userPoolId,
   appSyncGraphQlApiKey,
   appSyncGraphQlApiEndpoint,
-  appSyncGraphQlAuthenticationType
+  appSyncGraphQlAuthenticationType,
+  webBroadcastQuality = '720'
 } = output[process.argv[2]];
 
 const envVars = {
@@ -29,7 +30,8 @@ const envVars = {
   REACT_APP_ENABLE_AMAZON_PRODUCT_STREAM_ACTION: enableAmazonProductStreamAction,
   REACT_APP_APPSYNC_GRAPHQL_APIKEY: appSyncGraphQlApiKey,
   REACT_APP_APPSYNC_GRAPHQL_ENDPOINT: appSyncGraphQlApiEndpoint,
-  REACT_APP_APPSYNC_GRAPHQL_AUTH_TYPE: appSyncGraphQlAuthenticationType
+  REACT_APP_APPSYNC_GRAPHQL_AUTH_TYPE: appSyncGraphQlAuthenticationType,
+  REACT_APP_WEB_BROADCAST_QUALITY: webBroadcastQuality
 };
 
 let data = '';

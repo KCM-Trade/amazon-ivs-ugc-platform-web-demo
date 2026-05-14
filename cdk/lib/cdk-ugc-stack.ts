@@ -51,6 +51,8 @@ export class UGCStack extends Stack {
       productLinkRegionCode,
       enableAmazonProductStreamAction
     } = resourceConfig;
+    const webBroadcastQuality =
+      resourceConfig.webBroadcastQuality === '1080' ? '1080' : '720';
     let { allowedOrigins } = resourceConfig;
     const stackNamePrefix = Stack.of(this).stackName;
     const accountId = Stack.of(this).account;
@@ -369,6 +371,9 @@ export class UGCStack extends Stack {
       value: `${enableAmazonProductStreamAction}`
     });
     new CfnOutput(this, 'channelType', { value: ivsChannelType });
+    new CfnOutput(this, 'webBroadcastQuality', {
+      value: webBroadcastQuality
+    });
     new CfnOutput(this, 'appSyncGraphQlApiKey', {
       value: appSyncGraphQlApi.apiKey
     });

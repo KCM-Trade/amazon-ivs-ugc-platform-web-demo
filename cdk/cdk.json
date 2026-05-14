@@ -44,7 +44,8 @@
         "stageName": "dev",
         "productApiLocale": "",
         "productLinkRegionCode": "",
-        "enableAmazonProductStreamAction": false
+        "enableAmazonProductStreamAction": false,
+        "webBroadcastQuality": "720"
       }
     },
     "prod": {
@@ -67,7 +68,8 @@
         "stageName": "prod",
         "productApiLocale": "",
         "productLinkRegionCode": "",
-        "enableAmazonProductStreamAction": false
+        "enableAmazonProductStreamAction": false,
+        "webBroadcastQuality": "720"
       }
     }
   }

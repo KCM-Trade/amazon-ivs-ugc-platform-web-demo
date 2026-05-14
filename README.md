@@ -223,6 +223,7 @@ The `cdk/cdk.json` file provides two configuration objects: one for the `dev` st
 - `deploySeparateContainers`, setting this to `true` will deploy the backend in two separate services, each one with the minimal required permissions. While being more costly, this option will scale better and is recommended for production.
 - `enableUserAutoVerify`, setting this to `true` is not recommended for production. It will skip the email verification when a new user signs up in the app.
 - `ivsChannelType` can be set to `BASIC` or `STANDARD`.
+- `webBroadcastQuality` controls IVS Web Broadcast (low-latency **Go Live** from the browser): `720` (1280×720, default) or `1080` (1920×1080). **`STANDARD`** channels may use **up to 8.5 Mbps** video bitrate; **`BASIC`** channels are capped by IVS ingest at **3.5 Mbps** for HD/1080p-class resolutions (see Stream Health encoder guidance). Edit `cdk/cdk.json`, redeploy with `make deploy`, then restart the web UI (`npm start`) so regenerated `web-ui/.env` picks up `REACT_APP_WEB_BROADCAST_QUALITY`. For a local-only override, set that variable in `web-ui/.env` without touching CDK.
 - `logRetention` is the number of days that the logs for the Cognito triggers will be kept. Omit this property to keep the logs forever.
 - `maxAzs` is the maximum number of availability zones (AZs) for the VPC in the region that the stack is deployed. Setting this value to the maximum number of AZs in your region will reduce the risk of the backend going offline but also increase the running cost. If you pick a number that is higher than the amount of AZs in your region, then all the AZs in the region will be used. Therefore, to use all "all AZs" available to your account, specify a high number for this property (such as 99). While it is possible to use 1 AZ, we recommend using a minimum of 2 AZs to take advantage of the safety and reliability of geographic redundancy (i.e. when one AZ becomes unhealthy or unavailable, the unaffected AZ will be used instead).
 - `minScalingCapacity` sets the lower limit of the number of tasks for Service Auto Scaling to use when running each of the backend services, ensuring that the backend services will not be automatically adjusted below this amount. You may increase this value if you're expecting high traffic in production. Alternatively, if you know that the backend services may be idle for a long period of time and you want to optimize for costs, you may set this value to 1.
@@ -534,7 +535,7 @@ Testing is automated using two GitHub Actions workflows: one for running the bac
 
 - Backend: The user registration flow involves the creation and coordination of multiple AWS resources, including the Cognito user pool, the Amazon IVS channel and chat room, and the DynamoDB channels table. This registration flow also includes important validation checks to ensure that the submitted data meets a set of constraints before the user is allowed to sign up for a new account. Therefore, we highly advise against creating or managing any user account from the AWS Cognito console or directly from the DynamoDB channels table as any such changes will be out of sync with the other user-related AWS resources. If at any point you see an error message pertaining to a manual change that was made from the AWS Cognito console (e.g. a password reset), a new account should be created using the frontend application's dedicated registration page.
 
-- Web Broadcast: Currently set to 720p resolution to ensure best performance across a wide range of devices.
+- Web Broadcast: Default quality is **`webBroadcastQuality` `720`** in `cdk.json`. Set **`1080`** for full HD ingest when your channel type supports the desired bitrate (**`STANDARD`**: up to ~8.5 Mbps; **`BASIC`**: up to ~3.5 Mbps for HD). Heavier workloads need capable hardware and upload bandwidth—see IVS Web Broadcast documentation.
 - Web Broadcast: For additional information on known issues and workarounds, please refer to the [Low-latency streaming known-issues SDK page](https://aws.github.io/amazon-ivs-web-broadcast/docs/low-latency-sdk-guides/known-issues) or [Real-time streaming known-issues SDK page](https://aws.github.io/amazon-ivs-web-broadcast/docs/real-time-sdk-guides/known-issues) in the Amazon IVS Web Broadcast documentation."
 
 - iOS: devices do not currently support the fullscreen API, which prevents a fullscreen player experience that includes custom player controls and header.
@@ -629,3 +630,11 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 ## License
 
 This library is licensed under the MIT-0 License. See the LICENSE file.
+
+
+## TODO
+录制 + 点播回放： 仓库未完整实现，需自建 IVS Recording + 业务。
+实时 vs 低延迟： 协作/Stage = 实时；单人 Go Live = 低延迟，没有开箱即用的「Go Live 里一键切换实时模式」开关。
+1080p / 更高码率： 当前前端 锁 720p；服务端 BASIC 与 STANDARD 上限不同；要拉高需改 Broadcast.jsx / 常量，并优先考虑 STANDARD 与 IVS 官方 maxBitrate/maxResolution 限制。
+
+CDK_DEFAULT_REGION=你的区域 AWS_DEFAULT_REGION=同一区域 make deploy AWS_PROFILE=my-dev
