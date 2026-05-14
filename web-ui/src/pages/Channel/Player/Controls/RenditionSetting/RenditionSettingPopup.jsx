@@ -179,6 +179,22 @@ const RenditionSettingPopup = ({
                 </Button>
               ) : null
             )}
+          {qualities.filter(({ name }) => name && name !== 'Auto').length <=
+            1 &&
+            !!$content.playback_rendition_hint && (
+              <p
+                className={clsm([
+                  'leading-snug',
+                  'mt-2',
+                  'px-1',
+                  'text-lightMode-gray-medium',
+                  'text-[11px]',
+                  'dark:text-darkMode-gray-light'
+                ])}
+              >
+                {$content.playback_rendition_hint}
+              </p>
+            )}
         </div>
       </motion.div>
     </>

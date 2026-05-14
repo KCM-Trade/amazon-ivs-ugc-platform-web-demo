@@ -1,6 +1,7 @@
 {
   "stream_offline": "Stream offline",
   "video_quality": "Video quality",
+  "playback_rendition_hint": "IVS exposes only resolutions that actually exist on this broadcast. Seeing only Auto / 720p usually means ingest is capped at ~720p. Enable 1080p from the broadcaster: set webBroadcastQuality → 1080 in cdk.json and redeploy, or REACT_APP_WEB_BROADCAST_QUALITY=1080 in web-ui/.env, restart npm start, then start a new live session. OBS and other desktop encoders ignore that setting—set resolution there.",
   "you_are_banned": "You are banned from this channel",
   "notification": {
     "error": {

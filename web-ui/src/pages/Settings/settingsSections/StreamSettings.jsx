@@ -118,6 +118,34 @@ const StreamSettings = () => {
         value={userData.playbackUrl}
         successMessage={$content.notification.success.playback_url_copied}
       />
+      <div
+        className={clsm([
+          INPUT_BUTTON_GROUP_CLASSES,
+          '-mt-4',
+          'mb-[10px]'
+        ])}
+      >
+        <span className="text-lightMode-gray-medium text-sm dark:text-darkMode-gray-light">
+          {$content.settings_page.browser_go_live_quality_label}:{' '}
+          <strong>
+            {process.env.REACT_APP_WEB_BROADCAST_QUALITY === '1080'
+              ? $content.settings_page.browser_go_live_quality_value_1080
+              : $content.settings_page.browser_go_live_quality_value_720}
+          </strong>
+        </span>
+        <p
+          className={clsm([
+            'text-lightMode-gray-medium',
+            'max-w-2xl',
+            'leading-relaxed',
+            'mt-2',
+            'text-xs',
+            'dark:text-darkMode-gray-light'
+          ])}
+        >
+          {$content.settings_page.browser_go_live_quality_explainer}
+        </p>
+      </div>
       <Button
         type="nav"
         to="/manager"
