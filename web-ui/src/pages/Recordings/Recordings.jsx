@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 
-import { Play } from '../../assets/icons';
+import {
+  FullScreen,
+  FullScreenExit,
+  Play
+} from '../../assets/icons';
 import { channelsAPI } from '../../api';
 import { app as $appContent } from '../../content';
 import PageLayout from '../ChannelDirectory/PageLayout';
 import withVerticalScroller from '../../components/withVerticalScroller';
 import usePlayer from '../../hooks/usePlayer';
-import { clsm } from '../../utils';
+import { VOLUME_MAX, VOLUME_MIN } from '../../constants';
+import { clsm, isiOS } from '../../utils';
 import Button from '../../components/Button';
 
 const $replay = $appContent.replay_library;
@@ -26,6 +31,10 @@ const formatWhen = (iso) => {
 };
 
 const RecordingPlayer = ({ playbackUrl }) => {
+  const fullscreenContainerRef = useRef(null);
+  const iosFullscreenPollRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   const {
     videoRef,
     hasError,
@@ -33,6 +42,7 @@ const RecordingPlayer = ({ playbackUrl }) => {
     isPaused,
     pause,
     play,
+    playerRef,
     qualities,
     selectedQualityName,
     updateQuality,
@@ -49,18 +59,166 @@ const RecordingPlayer = ({ playbackUrl }) => {
     isBlurEnabled: false
   });
 
+  const stopIosFullscreenPoll = useCallback(() => {
+    if (iosFullscreenPollRef.current) {
+      clearInterval(iosFullscreenPollRef.current);
+      iosFullscreenPollRef.current = null;
+    }
+  }, []);
+
+  const syncStateAfterIosNativeFullscreen = useCallback(() => {
+    const inst = playerRef.current;
+
+    try {
+      if (!inst) return;
+
+      if (inst.isPaused()) pause();
+      else play();
+
+      if (inst.isMuted()) updateVolume(VOLUME_MIN);
+      else updateVolume(VOLUME_MAX);
+    } catch {
+      //
+    }
+  }, [pause, play, playerRef, updateVolume]);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const root = fullscreenContainerRef.current;
+
+      if (!root) return;
+
+      const active =
+        document.fullscreenElement ?? document.webkitFullscreenElement;
+
+      setIsFullscreen(active === root);
+    };
+
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      document.removeEventListener(
+        'webkitfullscreenchange',
+        onFullscreenChange
+      );
+      stopIosFullscreenPoll();
+    };
+  }, [stopIosFullscreenPoll]);
+
+  useEffect(
+    () => () => stopIosFullscreenPoll(),
+    [playbackUrl, stopIosFullscreenPoll]
+  );
+
+  const exitElementFullscreen = useCallback(async () => {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      await document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+  }, []);
+
+  const enterElementFullscreen = useCallback(async () => {
+    const target = fullscreenContainerRef.current;
+
+    if (!target) return;
+
+    if (target.requestFullscreen) {
+      await target.requestFullscreen();
+    } else if (target.webkitRequestFullscreen) {
+      target.webkitRequestFullscreen();
+    }
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (isiOS()) {
+        const videoEl = videoRef.current;
+
+        if (!videoEl?.webkitEnterFullscreen) return;
+
+        if (videoEl.webkitDisplayingFullscreen) return;
+
+        stopIosFullscreenPoll();
+        videoEl.webkitEnterFullscreen();
+        setIsFullscreen(true);
+        iosFullscreenPollRef.current = setInterval(() => {
+          if (!videoRef.current?.webkitDisplayingFullscreen) {
+            stopIosFullscreenPoll();
+            setIsFullscreen(false);
+            syncStateAfterIosNativeFullscreen();
+          }
+        }, 150);
+
+        return;
+      }
+
+      if (isFullscreen) await exitElementFullscreen();
+      else await enterElementFullscreen();
+    } catch {
+      //
+    }
+  }, [
+    enterElementFullscreen,
+    exitElementFullscreen,
+    isFullscreen,
+    stopIosFullscreenPoll,
+    syncStateAfterIosNativeFullscreen,
+    videoRef
+  ]);
+
+  const desktopElementFullscreen = isFullscreen && !isiOS();
+
+  const fsVideoShell = clsm([
+    'relative',
+    'w-full',
+    'rounded',
+    'overflow-hidden',
+    'bg-black',
+    'aspect-video',
+    desktopElementFullscreen && [
+      'aspect-auto',
+      'flex',
+      'flex-1',
+      'min-h-0',
+      'items-center',
+      'justify-center',
+      'rounded-none'
+    ]
+  ]);
+
+  const fsVideoEl = clsm([
+    'relative',
+    'z-10',
+    desktopElementFullscreen
+      ? 'h-auto max-h-[min(calc(100dvh-8rem),100vw)] w-full object-contain'
+      : 'h-full w-full'
+  ]);
+
   return (
-    <div className={clsm(['w-full', 'max-w-4xl', 'space-y-3'])}>
-      <div
-        className={clsm([
-          'relative',
-          'w-full',
-          'aspect-video',
-          'rounded',
-          'overflow-hidden',
-          'bg-black'
-        ])}
-      >
+    <div
+      ref={fullscreenContainerRef}
+      className={clsm([
+        'w-full',
+        'max-w-4xl',
+        'space-y-3',
+        'rounded-lg',
+        desktopElementFullscreen && [
+            'flex',
+            'h-[100dvh]',
+            'max-h-screen',
+            'min-h-[50vh]',
+            'max-w-none',
+            'flex-col',
+            'bg-black',
+            'p-4',
+            'rounded-none'
+          ]
+      ])}
+    >
+      <div className={fsVideoShell}>
         {shouldBlurPlayer && isBlurReady && (
           <canvas
             ref={canvasRef}
@@ -76,7 +234,7 @@ const RecordingPlayer = ({ playbackUrl }) => {
         {/* eslint-disable-next-line jsx-a11y/media-has-caption -- captions may be embedded in IVS HLS; no sidecar VTT */}
         <video
           ref={videoRef}
-          className={clsm(['relative', 'z-10', 'h-full', 'w-full'])}
+          className={fsVideoEl}
           playsInline
           muted={false}
         />
@@ -113,6 +271,39 @@ const RecordingPlayer = ({ playbackUrl }) => {
           onClick={() => (isPaused ? play() : pause())}
         >
           {isPaused ? 'Play' : 'Pause'}
+        </Button>
+        <Button
+          variant="secondary"
+          type="button"
+          onClick={toggleFullscreen}
+          disabled={isiOS() && isFullscreen}
+          aria-pressed={desktopElementFullscreen}
+          ariaLabel={
+            isiOS()
+              ? $replay.enter_fullscreen
+              : desktopElementFullscreen
+                ? $replay.exit_fullscreen
+                : $replay.enter_fullscreen
+          }
+          className={clsm([
+            'inline-flex',
+            'items-center',
+            'justify-center',
+            'gap-2'
+          ])}
+        >
+          {!isiOS() && desktopElementFullscreen ? (
+            <FullScreenExit />
+          ) : (
+            <FullScreen />
+          )}
+          <span>
+            {isiOS()
+              ? $replay.enter_fullscreen
+              : desktopElementFullscreen
+                ? $replay.exit_fullscreen
+                : $replay.enter_fullscreen}
+          </span>
         </Button>
         {qualities.filter((q) => q.name !== 'Auto').length > 1 && (
           <label

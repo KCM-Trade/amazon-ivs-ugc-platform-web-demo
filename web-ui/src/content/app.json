@@ -17,7 +17,9 @@
     "title": "Replay library",
     "empty": "No replays yet. Go live to create one; when you end the broadcast, recordings appear here after a short delay.",
     "load_error": "Could not load replays.",
-    "hint": "Choose a replay to watch."
+    "hint": "Choose a replay to watch.",
+    "enter_fullscreen": "Full screen",
+    "exit_fullscreen": "Exit full screen"
   },
   "modal": {
     "cancel": "Cancel"
