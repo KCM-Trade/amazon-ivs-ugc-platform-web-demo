@@ -5,8 +5,11 @@ import {
   STAGE_END_EXCEPTION
 } from '../../shared/constants';
 import { verifyUserIsStageHost } from '../helpers';
-import { updateDynamoItemAttributes } from '../../shared/helpers';
+import { getUser } from '../../channel/helpers';
+import { dynamoDbClient, updateDynamoItemAttributes } from '../../shared/helpers';
 import { UserContext } from '../../shared/authorizer';
+import { UpdateItemCommand } from '@aws-sdk/client-dynamodb';
+import { convertToAttr, unmarshall } from '@aws-sdk/util-dynamodb';
 
 type DeleteStageRequestBody = {
   deleteStageResource: boolean;
@@ -31,6 +34,9 @@ const handler = async (
       });
     }
 
+    const { Item: channelItem = {} } = await getUser(sub);
+    const { channelArn } = unmarshall(channelItem);
+
     await updateDynamoItemAttributes({
       attributes: [
         { key: CHANNELS_TABLE_STAGE_FIELDS.STAGE_ID, value: null },
@@ -42,6 +48,22 @@ const handler = async (
     console.log(
       "Successfully nullified the stageId attribute from the channel's table."
     );
+
+    if (channelArn && stageId && process.env.STREAM_TABLE_NAME) {
+      await dynamoDbClient.send(
+        new UpdateItemCommand({
+          TableName: process.env.STREAM_TABLE_NAME,
+          Key: {
+            channelArn: convertToAttr(channelArn),
+            id: convertToAttr(stageId)
+          },
+          UpdateExpression: 'REMOVE isOpen SET endTime = :endTime',
+          ExpressionAttributeValues: {
+            ':endTime': convertToAttr(new Date().toISOString())
+          }
+        })
+      );
+    }
 
     reply.statusCode = 200;
     return reply.send({

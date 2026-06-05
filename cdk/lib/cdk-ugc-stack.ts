@@ -215,6 +215,24 @@ export class UGCStack extends Stack {
       }
     );
 
+    const ivsRtStorageConfigName =
+      `${stackNamePrefix}-rt-store`.replace(/[^a-zA-Z0-9-_]/g, '').slice(0, 128) ||
+      'ivs-rt-store';
+
+    const ivsRtStorageConfiguration = new CfnResource(
+      this,
+      `${stackNamePrefix}-IvsRtStorageConfiguration`,
+      {
+        type: 'AWS::IVS::StorageConfiguration',
+        properties: {
+          Name: ivsRtStorageConfigName,
+          S3: {
+            BucketName: ivsRecordingsBucket.bucketName
+          }
+        }
+      }
+    );
+
     // Container image
     const containerImage = ecs.ContainerImage.fromAsset(
       path.join(__dirname, '../api'),
@@ -241,12 +259,16 @@ export class UGCStack extends Stack {
     Tags.of(channelsStack).add('nestedStack', 'channels');
 
     // Metrics Stack
+    const ivsRtStorageConfigurationArn =
+      ivsRtStorageConfiguration.getAtt('Arn').toString();
+
     const metricsStack = new MetricsStack(this, 'Metrics', {
       cluster,
       ivsChannelType,
       channelsTable,
       vpc,
-      recordingsBucketName: ivsRecordingsBucket.bucketName
+      recordingsBucketName: ivsRecordingsBucket.bucketName,
+      ivsRtStorageConfigurationArn
     });
     const {
       containerEnv: metricsContainerEnv,
@@ -259,7 +281,7 @@ export class UGCStack extends Stack {
     const { streamTable } = metricsOutputs;
     channelsPolicies.push(
       new iam.PolicyStatement({
-        actions: ['dynamodb:Query', 'dynamodb:UpdateItem'],
+        actions: ['dynamodb:Query', 'dynamodb:UpdateItem', 'dynamodb:PutItem'],
         effect: iam.Effect.ALLOW,
         resources: [
           streamTable.tableArn,
@@ -278,6 +300,8 @@ export class UGCStack extends Stack {
     channelsContainerEnv.STREAM_TABLE_NAME = streamTable.tableName;
     channelsContainerEnv.IVS_RECORDING_CONFIGURATION_ARN =
       ivsRecordingConfiguration.getAtt('Arn').toString();
+    channelsContainerEnv.IVS_RT_STORAGE_CONFIGURATION_ARN =
+      ivsRtStorageConfigurationArn;
 
     // This environment is required for any container that exposes authenticated endpoints
     const baseContainerEnv = {

@@ -7,6 +7,7 @@ import {
   IVSRealTimeClient,
   ListParticipantsCommand,
   ListParticipantsCommandInput,
+  ParticipantRecordingMediaType,
   ParticipantSummary,
   DisconnectParticipantCommand
 } from '@aws-sdk/client-ivs-realtime';
@@ -25,10 +26,15 @@ import {
   RESOURCE_NOT_FOUND_EXCEPTION,
   STAGE_TOKEN_DURATION
 } from '../shared/constants';
-import { getUser } from '../channel/helpers';
+import { getRtStorageConfigurationArnFromEnv, getUser } from '../channel/helpers';
 import { ParticipantTokenCapability } from '@aws-sdk/client-ivs-realtime';
 import { convertToAttr, unmarshall } from '@aws-sdk/util-dynamodb';
-import { AttributeValue, QueryCommand } from '@aws-sdk/client-dynamodb';
+import {
+  AttributeValue,
+  PutItemCommand,
+  QueryCommand,
+  UpdateItemCommand
+} from '@aws-sdk/client-dynamodb';
 import { buildChannelArn } from '../metrics/helpers';
 
 export const USER_STAGE_ID_SEPARATOR = ':stage/';
@@ -161,6 +167,7 @@ export const handleCreateStage = async ({
       userId: uuidv4()
     }
   ];
+  const rtStorageConfigurationArn = getRtStorageConfigurationArnFromEnv();
   const createStageCommandInput = {
     name: `${username}-${uuidv4()}`,
     participantTokenConfigurations,
@@ -168,7 +175,15 @@ export const handleCreateStage = async ({
       creationDate: stageCreationDate,
       stageOwnerChannelId: channelId,
       project: process.env.PROJECT_TAG as string
-    }
+    },
+    ...(rtStorageConfigurationArn
+      ? {
+          autoParticipantRecordingConfiguration: {
+            storageConfigurationArn: rtStorageConfigurationArn,
+            mediaTypes: [ParticipantRecordingMediaType.AUDIO_VIDEO]
+          }
+        }
+      : {})
   };
 
   try {
@@ -224,6 +239,13 @@ export const handleCreateStage = async ({
 
     console.log('HANDLE CREATE STAGE: successfully updated channels table');
 
+    await createRealtimeStreamSession({
+      channelArn,
+      stageId,
+      startTime: stageCreationDate,
+      userSub: sub
+    });
+
     return {
       ...stageConfig,
       stageId
@@ -261,6 +283,70 @@ export const handleCreateParticipantToken = async (
 
 export const buildStageArn = (stageId: string) =>
   `arn:aws:ivs:${process.env.REGION}:${process.env.ACCOUNT_ID}${USER_STAGE_ID_SEPARATOR}${stageId}`;
+
+export const createRealtimeStreamSession = async ({
+  channelArn,
+  stageId,
+  startTime,
+  userSub
+}: {
+  channelArn: string;
+  stageId: string;
+  startTime: string;
+  userSub: string;
+}) => {
+  const streamTableName = process.env.STREAM_TABLE_NAME;
+  if (!streamTableName) {
+    console.warn('STREAM_TABLE_NAME unset; skipping realtime stream session row');
+
+    return;
+  }
+
+  const { Items: liveStreamSessions = [] } = await dynamoDbClient.send(
+    new QueryCommand({
+      TableName: streamTableName,
+      IndexName: 'isOpenIndex',
+      ExpressionAttributeValues: {
+        ':userChannelArn': convertToAttr(channelArn)
+      },
+      KeyConditionExpression: 'channelArn=:userChannelArn',
+      ProjectionExpression: 'id'
+    })
+  );
+
+  await Promise.allSettled(
+    liveStreamSessions
+      .map((liveStreamSession) => unmarshall(liveStreamSession).id)
+      .filter((id) => id && id !== stageId)
+      .map((id) =>
+        dynamoDbClient.send(
+          new UpdateItemCommand({
+            TableName: streamTableName,
+            Key: {
+              channelArn: convertToAttr(channelArn),
+              id: convertToAttr(id)
+            },
+            UpdateExpression: 'REMOVE isOpen'
+          })
+        )
+      )
+  );
+
+  await dynamoDbClient.send(
+    new PutItemCommand({
+      TableName: streamTableName,
+      Item: {
+        channelArn: convertToAttr(channelArn),
+        id: convertToAttr(stageId),
+        userSub: convertToAttr(userSub),
+        startTime: convertToAttr(startTime),
+        isOpen: convertToAttr('true'),
+        sessionType: convertToAttr('realTime'),
+        truncatedEvents: convertToAttr([])
+      }
+    })
+  );
+};
 
 const updateHostChannelTable = async (hostChannelArn: string) => {
   const queryCommand = new QueryCommand({

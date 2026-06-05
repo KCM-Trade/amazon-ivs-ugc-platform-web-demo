@@ -633,8 +633,8 @@ This library is licensed under the MIT-0 License. See the LICENSE file.
 
 
 ## TODO
-录制 + 点播回放： 仓库未完整实现，需自建 IVS Recording + 业务。
 实时 vs 低延迟： 协作/Stage = 实时；单人 Go Live = 低延迟，没有开箱即用的「Go Live 里一键切换实时模式」开关。
 1080p / 更高码率： 当前前端 锁 720p；服务端 BASIC 与 STANDARD 上限不同；要拉高需改 Broadcast.jsx / 常量，并优先考虑 STANDARD 与 IVS 官方 maxBitrate/maxResolution 限制。
 
+cd cdk
 CDK_DEFAULT_REGION=ap-northeast-1 AWS_DEFAULT_REGION=ap-northeast-1 make deploy AWS_PROFILE=my-dev

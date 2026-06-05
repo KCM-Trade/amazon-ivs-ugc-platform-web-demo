@@ -15,7 +15,7 @@
   },
   "replay_library": {
     "title": "Replay library",
-    "empty": "No replays yet. Go live to create one; when you end the broadcast, recordings appear here after a short delay.",
+    "empty": "No replays yet. Go Live and real-time sessions are recorded automatically; replays appear here shortly after you end.",
     "load_error": "Could not load replays.",
     "hint": "Choose a replay to watch.",
     "enter_fullscreen": "Full screen",

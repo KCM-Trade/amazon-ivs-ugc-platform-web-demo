@@ -408,6 +408,9 @@ export const areObjectsSame = <T extends Record<string, any>>(
 export const getRecordingConfigurationArnFromEnv = (): string =>
   (process.env.IVS_RECORDING_CONFIGURATION_ARN || '').trim();
 
+export const getRtStorageConfigurationArnFromEnv = (): string =>
+  (process.env.IVS_RT_STORAGE_CONFIGURATION_ARN || '').trim();
+
 export const getCdkChannelConfigurationFromEnv = (): ChannelConfiguration => {
   const multitrackInputConfiguration: MultitrackInputConfiguration =
     JSON.parse(process.env.CHANNEL_MULTITRACK_INPUT_CONFIGURATION || '{}');

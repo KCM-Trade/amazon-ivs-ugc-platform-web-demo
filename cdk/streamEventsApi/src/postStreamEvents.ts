@@ -2,8 +2,10 @@ import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { FastifyReply, FastifyRequest } from 'fastify';
 
 import {
+  IVS_PARTICIPANT_RECORDING_STATE_CHANGE_TYPE,
   IVS_RECORDING_STATE_CHANGE_TYPE,
   LIMIT_BREACH_EVENT_TYPE,
+  PARTICIPANT_RECORDING_END,
   SESSION_CREATED,
   SESSION_ENDED,
   STARVATION_START,
@@ -13,8 +15,11 @@ import {
 } from './constants';
 import {
   AdditionalStreamAttributes,
+  extractStageIdFromStageArn,
   getStreamEvents,
+  getStreamSession,
   getStreamsByChannelArn,
+  getUserByStageId,
   setOldLiveStreamsOffline,
   StreamEvent,
   updateStreamEvents
@@ -75,6 +80,10 @@ const handler = async (
 
     if (eventType === IVS_RECORDING_STATE_CHANGE_TYPE) {
       return handleRecordingStateChange(request, reply);
+    }
+
+    if (eventType === IVS_PARTICIPANT_RECORDING_STATE_CHANGE_TYPE) {
+      return handleParticipantRecordingStateChange(request, reply);
     }
 
     let {
@@ -321,6 +330,120 @@ async function handleRecordingStateChange(
         });
       })
     );
+  } catch (error) {
+    console.error(error);
+    console.error(`Event body: ${JSON.stringify(request.body)}`);
+
+    reply.statusCode = 500;
+
+    return reply.send({ __type: UNEXPECTED_EXCEPTION });
+  }
+
+  return reply.send();
+}
+
+async function handleParticipantRecordingStateChange(
+  request: FastifyRequest<{
+    Body: {
+      'detail-type': string;
+      detail: Record<string, unknown>;
+      time: string;
+      resources: string[];
+    };
+  }>,
+  reply: FastifyReply
+) {
+  try {
+    const detail = request.body.detail || {};
+    const eventName = detail.event_name as string | undefined;
+    const stageArn = request.body.resources?.[0];
+    const eventTime = request.body.time;
+
+    if (eventName !== PARTICIPANT_RECORDING_END || !stageArn || !eventTime) {
+      await reply.send();
+
+      return;
+    }
+
+    const recordingBucket =
+      (detail.recording_s3_bucket_name as string | undefined) ||
+      process.env.RECORDINGS_BUCKET_NAME;
+    const keyPrefix = detail.recording_s3_key_prefix as string | undefined;
+    const recordingDurationMs = detail.recording_duration_ms as
+      | number
+      | undefined;
+
+    if (!recordingBucket || !keyPrefix) {
+      console.warn('Participant recording end without S3 location; skipping');
+      await reply.send();
+
+      return;
+    }
+
+    const stageId = extractStageIdFromStageArn(stageArn);
+    if (!stageId) {
+      throw new Error('Could not parse stage id from stage ARN');
+    }
+
+    const { Items = [] } = await getUserByStageId(stageId);
+    if (!Items.length) {
+      console.warn('No channel owner found for participant recording', stageId);
+      await reply.send();
+
+      return;
+    }
+
+    const { id: userSub, channelArn } = unmarshall(Items[0]);
+    if (!userSub || !channelArn) {
+      throw new Error('Missing channelArn or user sub for participant recording');
+    }
+
+    const existingSession = await getStreamSession(channelArn, stageId);
+    const existingDuration = existingSession.recordingDurationMs as
+      | number
+      | undefined;
+
+    if (
+      typeof existingDuration === 'number' &&
+      typeof recordingDurationMs === 'number' &&
+      recordingDurationMs <= existingDuration
+    ) {
+      await reply.send();
+
+      return;
+    }
+
+    const manifestKey = `${normalizeKeyPrefix(keyPrefix)}/media/hls/multivariant.m3u8`;
+    const recordingPlaybackUrl = buildPlaybackUrlFromS3Key(
+      recordingBucket,
+      process.env.AWS_REGION || process.env.REGION,
+      manifestKey
+    );
+
+    const streamEvents = await getStreamEvents(channelArn, stageId);
+    const newEvent: StreamEvent = {
+      eventTime,
+      name: eventName,
+      type: IVS_PARTICIPANT_RECORDING_STATE_CHANGE_TYPE
+    };
+    streamEvents.push(newEvent);
+
+    const additionalAttributes: AdditionalStreamAttributes = {
+      recordingPlaybackUrl,
+      endTime: eventTime
+    };
+    if (typeof recordingDurationMs === 'number') {
+      additionalAttributes.recordingDurationMs = recordingDurationMs;
+    }
+
+    await updateStreamEvents({
+      additionalAttributes,
+      attributesToRemove: ['isOpen'],
+      channelArn,
+      streamEvents,
+      streamId: stageId,
+      userSub
+    });
   } catch (error) {
     console.error(error);
     console.error(`Event body: ${JSON.stringify(request.body)}`);

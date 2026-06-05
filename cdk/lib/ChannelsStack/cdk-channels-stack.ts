@@ -191,6 +191,10 @@ export class ChannelsStack extends NestedStack {
       projectionType: ProjectionType.INCLUDE,
       nonKeyAttributes: ['channelAssets']
     });
+    channelsTable.addGlobalSecondaryIndex({
+      indexName: 'stageIdIndex',
+      partitionKey: { name: 'stageId', type: dynamodb.AttributeType.STRING }
+    });
 
     // S3 Channel Assets Bucket
     const channelAssetsBucket = new s3.Bucket(
@@ -431,7 +435,8 @@ export class ChannelsStack extends NestedStack {
       resources: [
         channelsTable.tableArn,
         `${channelsTable.tableArn}/index/emailIndex`,
-        `${channelsTable.tableArn}/index/usernameIndex`
+        `${channelsTable.tableArn}/index/usernameIndex`,
+        `${channelsTable.tableArn}/index/stageIdIndex`
       ]
     });
     const channelsTableChannelArnIndexPolicyStatement = new iam.PolicyStatement(
@@ -455,6 +460,7 @@ export class ChannelsStack extends NestedStack {
         'ivs:UpdateChannel',
         'ivs:CreateParticipantToken',
         'ivs:CreateStage',
+        'ivs:UpdateStage',
         'ivs:CreateStreamKey',
         'ivs:DeleteChannel',
         'ivs:DeleteStage',

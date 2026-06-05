@@ -15,6 +15,14 @@ export type AdditionalStreamAttributes = {
   startTime?: string;
   endTime?: string;
   recordingPlaybackUrl?: string;
+  recordingDurationMs?: number;
+};
+
+export const extractStageIdFromStageArn = (stageArn: string) => {
+  const separator = ':stage/';
+  const index = stageArn.indexOf(separator);
+
+  return index >= 0 ? stageArn.slice(index + separator.length) : '';
 };
 
 export type StreamEvent = {
@@ -56,6 +64,25 @@ export const getStreamEvents = async (
   const { truncatedEvents = [] } = unmarshall(Item);
 
   return truncatedEvents;
+};
+
+export const getStreamSession = async (
+  channelArn: string,
+  streamId: string
+) => {
+  const { Item = {} } = await dynamoDbClient.send(
+    new GetItemCommand({
+      ConsistentRead: true,
+      Key: {
+        channelArn: convertToAttr(channelArn),
+        id: convertToAttr(streamId)
+      },
+      ProjectionExpression: 'recordingPlaybackUrl, recordingDurationMs',
+      TableName: process.env.STREAM_TABLE_NAME
+    })
+  );
+
+  return unmarshall(Item);
 };
 
 const getLiveStreamsByChannelArn = (userChannelArn: string) =>
@@ -145,6 +172,20 @@ export const updateStreamEvents = ({
   });
 
   return dynamoDbClient.send(updateItemCommand);
+};
+
+export const getUserByStageId = (stageId: string) => {
+  const queryCommand = new QueryCommand({
+    IndexName: 'stageIdIndex',
+    TableName: process.env.CHANNELS_TABLE_NAME,
+    Limit: 1,
+    KeyConditionExpression: 'stageId=:stageId',
+    ExpressionAttributeValues: {
+      ':stageId': convertToAttr(stageId)
+    }
+  });
+
+  return dynamoDbClient.send(queryCommand);
 };
 
 export const getUserByChannelArn = (eventChannelArn: string) => {
