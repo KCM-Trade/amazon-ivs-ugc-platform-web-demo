@@ -1,3 +1,4 @@
+import { S3Client } from '@aws-sdk/client-s3';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { FastifyReply, FastifyRequest } from 'fastify';
 
@@ -25,6 +26,23 @@ import {
   updateStreamEvents
 } from './helpers';
 import { getUserByChannelArn } from './helpers';
+import { archiveRecordingPrefix } from './recordingArchive';
+import {
+  buildCanonicalLowLatencyPrefix,
+  buildCanonicalRealTimePrefix,
+  buildManifestKey,
+  buildPlaybackUrlFromS3Key,
+  extractResourceIdFromArn,
+  LOW_LATENCY_MANIFEST,
+  normalizeKeyPrefix,
+  REAL_TIME_MANIFEST,
+  resolveLowLatencySessionId,
+  resolveRealTimeSessionParts
+} from './recordingPaths';
+
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || process.env.REGION
+});
 
 const RECORDING_TERMINAL_STATUSES = new Set([
   'Recording End',
@@ -32,25 +50,6 @@ const RECORDING_TERMINAL_STATUSES = new Set([
   'Recording End Failure',
   'RECORDING_ENDED_WITH_FAILURE'
 ]);
-
-const buildPlaybackUrlFromS3Key = (
-  bucketName: string,
-  region: string | undefined,
-  key: string
-) => {
-  const hostRegion = region || process.env.AWS_REGION || process.env.REGION;
-  const playbackBase = `https://${bucketName}.s3.${hostRegion}.amazonaws.com/`;
-
-  return (
-    playbackBase +
-    key
-      .split('/')
-      .map((segment) => encodeURIComponent(segment))
-      .join('/')
-  );
-};
-
-const normalizeKeyPrefix = (prefix: string) => prefix.replace(/\/+$/, '');
 
 const handler = async (
   request: FastifyRequest<{
@@ -261,7 +260,30 @@ async function handleRecordingStateChange(
       return;
     }
 
-    const manifestKey = `${normalizeKeyPrefix(keyPrefix)}/media/hls/master.m3u8`;
+    const channelId = extractResourceIdFromArn(channelArn);
+    const sessionId = resolveLowLatencySessionId({
+      stream_id: streamIdScalar,
+      recording_session_id: detail.recording_session_id as string | undefined,
+      recording_s3_key_prefix: keyPrefix
+    });
+
+    if (!channelId || !sessionId) {
+      console.warn('Recording end without channel/session ids; skipping persist');
+      await reply.send();
+
+      return;
+    }
+
+    const canonicalPrefix = buildCanonicalLowLatencyPrefix(channelId, sessionId);
+
+    await archiveRecordingPrefix({
+      client: s3Client,
+      bucket: recordingBucket,
+      sourcePrefix: keyPrefix,
+      destinationPrefix: canonicalPrefix
+    });
+
+    const manifestKey = buildManifestKey(canonicalPrefix, LOW_LATENCY_MANIFEST);
     const recordingPlaybackUrl = buildPlaybackUrlFromS3Key(
       recordingBucket,
       process.env.AWS_REGION || process.env.REGION,
@@ -413,7 +435,32 @@ async function handleParticipantRecordingStateChange(
       return;
     }
 
-    const manifestKey = `${normalizeKeyPrefix(keyPrefix)}/media/hls/multivariant.m3u8`;
+    const { sessionId, participantId } = resolveRealTimeSessionParts(keyPrefix, {
+      session_id: detail.session_id as string | undefined,
+      participant_id: detail.participant_id as string | undefined
+    });
+
+    if (!sessionId || !participantId) {
+      console.warn('Participant recording end without session/participant ids; skipping');
+      await reply.send();
+
+      return;
+    }
+
+    const canonicalPrefix = buildCanonicalRealTimePrefix(
+      stageId,
+      sessionId,
+      participantId
+    );
+
+    await archiveRecordingPrefix({
+      client: s3Client,
+      bucket: recordingBucket,
+      sourcePrefix: keyPrefix,
+      destinationPrefix: canonicalPrefix
+    });
+
+    const manifestKey = buildManifestKey(canonicalPrefix, REAL_TIME_MANIFEST);
     const recordingPlaybackUrl = buildPlaybackUrlFromS3Key(
       recordingBucket,
       process.env.AWS_REGION || process.env.REGION,

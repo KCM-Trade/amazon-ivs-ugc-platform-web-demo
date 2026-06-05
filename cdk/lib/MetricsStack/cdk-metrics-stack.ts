@@ -26,6 +26,7 @@ interface MetricsStackProps extends NestedStackProps {
   channelsTable: dynamodb.Table;
   vpc: ec2.Vpc;
   recordingsBucketName: string;
+  recordingsBucketArn: string;
   ivsRtStorageConfigurationArn: string;
 }
 
@@ -46,6 +47,7 @@ export class MetricsStack extends NestedStack {
       channelsTable,
       vpc,
       recordingsBucketName,
+      recordingsBucketArn,
       ivsRtStorageConfigurationArn
     } = props;
 
@@ -145,6 +147,11 @@ export class MetricsStack extends NestedStack {
         `${channelsTable.tableArn}/index/stageIdIndex`
       ]
     });
+    const recordingsBucketPolicyStatement = new iam.PolicyStatement({
+      actions: ['s3:ListBucket', 's3:GetObject', 's3:PutObject'],
+      effect: iam.Effect.ALLOW,
+      resources: [recordingsBucketArn, `${recordingsBucketArn}/*`]
+    });
     const { service: streamEventsService } = new Service(
       this,
       `${nestedStackName}-StreamEvents-Service`,
@@ -160,7 +167,11 @@ export class MetricsStack extends NestedStack {
           ACCOUNT_ID: Stack.of(this).account
         },
         minScalingCapacity: 1,
-        policies: [streamTablePolicyStatement, channelsTablePolicyStatement],
+        policies: [
+          streamTablePolicyStatement,
+          channelsTablePolicyStatement,
+          recordingsBucketPolicyStatement
+        ],
         prefix: 'StreamEvents',
         securityGroups: [streamEventsSecurityGroup]
       }

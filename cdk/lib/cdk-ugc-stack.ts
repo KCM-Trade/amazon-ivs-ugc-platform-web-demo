@@ -135,6 +135,8 @@ export class UGCStack extends Stack {
     });
 
     // Dedicated bucket for IVS auto-record outputs (manifest + segments).
+    // IVS writes to AWS-native prefixes; stream-events copies into recordings/{low-latency|real-time}/...
+    // TODO(R2): Dual-write or migrate canonical recordings/ keys to Cloudflare R2.
     // Public read keeps HLS child requests working without rewriting manifests.
     const ivsRecordingsBucket = new s3.Bucket(
       this,
@@ -268,6 +270,7 @@ export class UGCStack extends Stack {
       channelsTable,
       vpc,
       recordingsBucketName: ivsRecordingsBucket.bucketName,
+      recordingsBucketArn: ivsRecordingsBucket.bucketArn,
       ivsRtStorageConfigurationArn
     });
     const {
