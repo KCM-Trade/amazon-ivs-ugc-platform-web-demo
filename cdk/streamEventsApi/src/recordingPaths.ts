@@ -1,15 +1,14 @@
 /**
  * Canonical S3 layout for IVS recordings (shared across low-latency + real-time).
  *
- * IVS always writes to AWS-managed prefixes first; we copy into this layout on
- * recording end so playback URLs stay shallow, consistent, and collision-free.
+ * IVS writes to AWS-managed prefixes first; we copy into this layout on recording end.
+ * The same canonical keys are mirrored to Cloudflare R2 when R2 env vars are set.
  *
  *   recordings/low-latency/{channelId}/{sessionId}/media/hls/master.m3u8
  *   recordings/real-time/{stageId}/{sessionId}/{participantId}/media/hls/multivariant.m3u8
- *
- * TODO(R2): Mirror the same key layout to Cloudflare R2 (dual-write or migrate)
- * and switch buildPlaybackUrl() to the R2 public/custom domain when configured.
  */
+
+import { getR2Config } from './r2Config';
 
 export const RECORDINGS_ROOT = 'recordings';
 export const LOW_LATENCY_SEGMENT = 'low-latency';
@@ -77,12 +76,14 @@ export const resolveRealTimeSessionParts = (
   };
 };
 
+export const buildR2ObjectKey = (canonicalS3Key: string): string =>
+  normalizeKeyPrefix(canonicalS3Key);
+
 export const buildPlaybackUrlFromS3Key = (
   bucketName: string,
   region: string | undefined,
   key: string
 ): string => {
-  // TODO(R2): Use CLOUDFLARE_R2_PUBLIC_BASE_URL (or Worker proxy) when set.
   const hostRegion = region || process.env.AWS_REGION || process.env.REGION;
   const playbackBase = `https://${bucketName}.s3.${hostRegion}.amazonaws.com/`;
 
@@ -93,4 +94,25 @@ export const buildPlaybackUrlFromS3Key = (
       .map((segment) => encodeURIComponent(segment))
       .join('/')
   );
+};
+
+export const buildPlaybackUrl = (
+  bucketName: string,
+  region: string | undefined,
+  canonicalManifestKey: string
+): string => {
+  const r2Base = getR2Config()?.publicBaseUrl;
+  if (r2Base) {
+    const r2Key = buildR2ObjectKey(canonicalManifestKey);
+
+    return (
+      `${r2Base}/` +
+      r2Key
+        .split('/')
+        .map((segment) => encodeURIComponent(segment))
+        .join('/')
+    );
+  }
+
+  return buildPlaybackUrlFromS3Key(bucketName, region, canonicalManifestKey);
 };

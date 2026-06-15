@@ -637,4 +637,11 @@ This library is licensed under the MIT-0 License. See the LICENSE file.
 1080p / 更高码率： 当前前端 锁 720p；服务端 BASIC 与 STANDARD 上限不同；要拉高需改 Broadcast.jsx / 常量，并优先考虑 STANDARD 与 IVS 官方 maxBitrate/maxResolution 限制。
 
 cd cdk
+
+export CLOUDFLARE_R2_BUCKET=live-app-uat
+export CLOUDFLARE_R2_PUBLIC_BASE_URL=video-uat.siegpath.com
+export CLOUDFLARE_R2_ACCESS_KEY=...
+export CLOUDFLARE_R2_SECRET_KEY=...
+export CLOUDFLARE_R2_ENDPOINT=https://9769e38964df82f3b131bec6233d897a.r2.cloudflarestorage.com
+
 CDK_DEFAULT_REGION=ap-northeast-1 AWS_DEFAULT_REGION=ap-northeast-1 make deploy AWS_PROFILE=my-dev

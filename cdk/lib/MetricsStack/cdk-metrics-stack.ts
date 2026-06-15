@@ -164,7 +164,13 @@ export class MetricsStack extends NestedStack {
           RECORDINGS_BUCKET_NAME: recordingsBucketName,
           IVS_RT_STORAGE_CONFIGURATION_ARN: ivsRtStorageConfigurationArn,
           REGION: Stack.of(this).region,
-          ACCOUNT_ID: Stack.of(this).account
+          ACCOUNT_ID: Stack.of(this).account,
+          CLOUDFLARE_R2_BUCKET: process.env.CLOUDFLARE_R2_BUCKET ?? '',
+          CLOUDFLARE_R2_PUBLIC_BASE_URL:
+            process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL ?? '',
+          CLOUDFLARE_R2_ACCESS_KEY: process.env.CLOUDFLARE_R2_ACCESS_KEY ?? '',
+          CLOUDFLARE_R2_SECRET_KEY: process.env.CLOUDFLARE_R2_SECRET_KEY ?? '',
+          CLOUDFLARE_R2_ENDPOINT: process.env.CLOUDFLARE_R2_ENDPOINT ?? ''
         },
         minScalingCapacity: 1,
         policies: [

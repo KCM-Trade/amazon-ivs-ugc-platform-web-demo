@@ -31,6 +31,7 @@ import {
   buildCanonicalLowLatencyPrefix,
   buildCanonicalRealTimePrefix,
   buildManifestKey,
+  buildPlaybackUrl,
   buildPlaybackUrlFromS3Key,
   extractResourceIdFromArn,
   LOW_LATENCY_MANIFEST,
@@ -284,7 +285,7 @@ async function handleRecordingStateChange(
     });
 
     const manifestKey = buildManifestKey(canonicalPrefix, LOW_LATENCY_MANIFEST);
-    const recordingPlaybackUrl = buildPlaybackUrlFromS3Key(
+    const recordingPlaybackUrl = buildPlaybackUrl(
       recordingBucket,
       process.env.AWS_REGION || process.env.REGION,
       manifestKey
@@ -461,7 +462,7 @@ async function handleParticipantRecordingStateChange(
     });
 
     const manifestKey = buildManifestKey(canonicalPrefix, REAL_TIME_MANIFEST);
-    const recordingPlaybackUrl = buildPlaybackUrlFromS3Key(
+    const recordingPlaybackUrl = buildPlaybackUrl(
       recordingBucket,
       process.env.AWS_REGION || process.env.REGION,
       manifestKey

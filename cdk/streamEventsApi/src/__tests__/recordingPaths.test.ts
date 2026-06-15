@@ -2,6 +2,8 @@ import {
   buildCanonicalLowLatencyPrefix,
   buildCanonicalRealTimePrefix,
   buildManifestKey,
+  buildPlaybackUrl,
+  buildR2ObjectKey,
   resolveLowLatencySessionId,
   resolveRealTimeSessionParts
 } from '../recordingPaths';
@@ -44,5 +46,29 @@ describe('recordingPaths', () => {
     expect(
       buildManifestKey('recordings/real-time/s1/s2/p1/', 'multivariant.m3u8')
     ).toBe('recordings/real-time/s1/s2/p1/media/hls/multivariant.m3u8');
+  });
+
+  it('builds R2 playback url with same key layout as S3', () => {
+    process.env.CLOUDFLARE_R2_BUCKET = 'live-app-uat';
+    process.env.CLOUDFLARE_R2_ACCESS_KEY = 'key';
+    process.env.CLOUDFLARE_R2_SECRET_KEY = 'secret';
+    process.env.CLOUDFLARE_R2_ENDPOINT = 'https://example.r2.cloudflarestorage.com';
+    process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL = 'video-uat.siegpath.com';
+
+    expect(
+      buildR2ObjectKey('recordings/low-latency/chan/st/media/hls/master.m3u8')
+    ).toBe('recordings/low-latency/chan/st/media/hls/master.m3u8');
+
+    expect(
+      buildPlaybackUrl('aws-bucket', 'ap-northeast-1', 'recordings/low-latency/chan/st/media/hls/master.m3u8')
+    ).toBe(
+      'https://video-uat.siegpath.com/recordings/low-latency/chan/st/media/hls/master.m3u8'
+    );
+
+    delete process.env.CLOUDFLARE_R2_BUCKET;
+    delete process.env.CLOUDFLARE_R2_ACCESS_KEY;
+    delete process.env.CLOUDFLARE_R2_SECRET_KEY;
+    delete process.env.CLOUDFLARE_R2_ENDPOINT;
+    delete process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL;
   });
 });
