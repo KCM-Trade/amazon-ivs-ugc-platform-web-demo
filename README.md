@@ -30,6 +30,20 @@ Deploying the CDK stack will:
 - create the Secrets Manager with the necessary secret(s) depending on the enabled features
 - create EventBridge rules to schedule an IVS Real-time streaming idle stage cleanup Lambda and a Cognito unverified users cleanup Lambda
 
+
+## DEPLOY
+```shell
+cd cdk
+
+export CLOUDFLARE_R2_BUCKET=live-app-uat
+export CLOUDFLARE_R2_PUBLIC_BASE_URL=video-uat.xxx.com
+export CLOUDFLARE_R2_ACCESS_KEY=...
+export CLOUDFLARE_R2_SECRET_KEY=...
+export CLOUDFLARE_R2_ENDPOINT=https://xxx.r2.cloudflarestorage.com
+
+CDK_DEFAULT_REGION=ap-northeast-1 AWS_DEFAULT_REGION=ap-northeast-1 make deploy AWS_PROFILE=my-dev
+
+
 ## Quick links 🔗
 
 - [Configure the demo](#configuration)
@@ -630,18 +644,3 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 ## License
 
 This library is licensed under the MIT-0 License. See the LICENSE file.
-
-
-## TODO
-实时 vs 低延迟： 协作/Stage = 实时；单人 Go Live = 低延迟，没有开箱即用的「Go Live 里一键切换实时模式」开关。
-1080p / 更高码率： 当前前端 锁 720p；服务端 BASIC 与 STANDARD 上限不同；要拉高需改 Broadcast.jsx / 常量，并优先考虑 STANDARD 与 IVS 官方 maxBitrate/maxResolution 限制。
-
-cd cdk
-
-export CLOUDFLARE_R2_BUCKET=live-app-uat
-export CLOUDFLARE_R2_PUBLIC_BASE_URL=video-uat.siegpath.com
-export CLOUDFLARE_R2_ACCESS_KEY=...
-export CLOUDFLARE_R2_SECRET_KEY=...
-export CLOUDFLARE_R2_ENDPOINT=https://9769e38964df82f3b131bec6233d897a.r2.cloudflarestorage.com
-
-CDK_DEFAULT_REGION=ap-northeast-1 AWS_DEFAULT_REGION=ap-northeast-1 make deploy AWS_PROFILE=my-dev
