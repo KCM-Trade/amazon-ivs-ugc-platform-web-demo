@@ -33,6 +33,8 @@ Deploying the CDK stack will:
 
 ## DEPLOY
 ```shell
+aws login
+
 cd cdk
 
 export CLOUDFLARE_R2_BUCKET=live-app-uat
@@ -42,7 +44,7 @@ export CLOUDFLARE_R2_SECRET_KEY=...
 export CLOUDFLARE_R2_ENDPOINT=https://xxx.r2.cloudflarestorage.com
 
 CDK_DEFAULT_REGION=ap-northeast-1 AWS_DEFAULT_REGION=ap-northeast-1 make deploy AWS_PROFILE=my-dev
-
+```
 
 ## Quick links 🔗
 
